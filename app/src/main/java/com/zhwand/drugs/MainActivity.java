@@ -263,4 +263,31 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onPause() {
-       
+        
+           super.onPause();
+
+    if (webView != null) {
+        webView.onPause();
+    }
+}
+
+@Override
+protected void onResume() {
+    super.onResume();
+
+    if (webView != null) {
+        webView.onResume();
+    }
+}
+
+@Override
+protected void onDestroy() {
+    if (webView != null) {
+        webView.stopLoading();
+        webView.destroy();
+        webView = null;
+    }
+
+    super.onDestroy();
+}
+}
