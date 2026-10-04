@@ -32,33 +32,41 @@ public class MainActivity extends AppCompatActivity {
 
         WebSettings settings = webView.getSettings();
 
-        // Required by the ERP
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
 
-        // Normal modern WebView behaviour
-        settings.setLoadWithOverviewMode(true);
-        settings.setUseWideViewPort(true);
+        // Better mobile rendering inside the Android APK
+        settings.setLoadWithOverviewMode(false);
+        settings.setUseWideViewPort(false);
+        settings.setTextZoom(100);
         settings.setMediaPlaybackRequiresUserGesture(false);
 
-        // Cookies / authentication session
+        // Keep login/session cookies working
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
 
         if (android.os.Build.VERSION.SDK_INT >=
                 android.os.Build.VERSION_CODES.LOLLIPOP) {
-
             cookieManager.setAcceptThirdPartyCookies(webView, true);
         }
 
-        // Keep links and redirects inside WebView
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new WebViewClient() {
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+
+                // Apply APK-specific mobile cleanup after every page load
+                injectAndroidAppLayout(view);
+            }
+        });
 
         webView.setWebChromeClient(new WebChromeClient() {
 
             @Override
-            public void onPermissionRequest(final PermissionRequest request) {
+            public void onPermissionRequest(
+                    final PermissionRequest request) {
 
                 runOnUiThread(() -> {
 
@@ -81,7 +89,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Camera permission for barcode scanner
         if (ContextCompat.checkSelfPermission(
                 this,
                 Manifest.permission.CAMERA)
@@ -94,14 +101,12 @@ public class MainActivity extends AppCompatActivity {
             );
         }
 
-        // Restore WebView state when possible
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
         } else {
             webView.loadUrl(APP_URL);
         }
 
-        // Android Back button
         getOnBackPressedDispatcher().addCallback(
                 this,
                 new OnBackPressedCallback(true) {
@@ -117,6 +122,91 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
         );
+    }
+
+    private void injectAndroidAppLayout(WebView view) {
+
+        String javascript =
+                "(function(){" +
+
+                "if(document.getElementById('zhwand-android-style'))return;" +
+
+                "document.documentElement.classList.add('zhwand-android-app');" +
+
+                "var style=document.createElement('style');" +
+                "style.id='zhwand-android-style';" +
+
+                "style.textContent=`" +
+
+                "html,body{" +
+                "max-width:100%!important;" +
+                "overflow-x:hidden!important;" +
+                "-webkit-text-size-adjust:100%!important;" +
+                "}" +
+
+                "@media(max-width:768px){" +
+
+                "body{" +
+                "padding-bottom:75px!important;" +
+                "}" +
+
+                "main{" +
+                "width:100%!important;" +
+                "max-width:100%!important;" +
+                "}" +
+
+                "button,select,input{" +
+                "min-height:40px;" +
+                "}" +
+
+                "[class*='install-banner']," +
+                "[class*='installBanner']," +
+                "[class*='pwa-install']," +
+                "[class*='pwaInstall']{" +
+                "display:none!important;" +
+                "}" +
+
+                "}" +
+
+                "`;" +
+
+                "document.head.appendChild(style);" +
+
+                "function cleanApkUI(){" +
+
+                "var nodes=document.querySelectorAll(" +
+                "'button,a,div,section,aside');" +
+
+                "nodes.forEach(function(el){" +
+
+                "var text=(el.innerText||'')" +
+                ".trim().toLowerCase();" +
+
+                "if(" +
+                "text==='install app'||" +
+                "text==='download app'||" +
+                "text.indexOf('add to home screen')!==-1||" +
+                "text.indexOf('on android chrome')!==-1" +
+                "){" +
+                "el.style.setProperty(" +
+                "'display','none','important');" +
+                "}" +
+
+                "});" +
+
+                "}" +
+
+                "cleanApkUI();" +
+
+                "new MutationObserver(cleanApkUI)" +
+                ".observe(document.documentElement,{" +
+                "childList:true," +
+                "subtree:true" +
+                "});" +
+
+                "})();";
+
+        view.evaluateJavascript(javascript, null);
     }
 
     @Override
@@ -154,7 +244,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
 
         if (webView != null) {
+
             CookieManager.getInstance().flush();
+
             webView.stopLoading();
             webView.destroy();
             webView = null;
